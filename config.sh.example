@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# Rename this file to config.sh before changing the variables. 
+# Now rename the variables below which have 'export' in front of them
+# Make sure there is no space before or after the = since this is not allowed in bash
+# Make sure not to commit your config.sh.
+
+# Always needed
+export UVA_HOME=/path/to/solutions/folder/
+export KUERZEL=ab123
+
+# Will be used if the submit command is used
+export UVA_JUDGE_NICKNAME=uvaNickname
+export UVA_JUDGE_PASSWORD=uvaPassword
+
+if ! [[ -d $UVA_HOME ]]; then
+    show "${RED}ERROR${WHITE}: $UVA_HOME does not exist" >&2
+    exit 1
+fi
+
+show "Config loaded"

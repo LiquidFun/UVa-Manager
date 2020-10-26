@@ -1,0 +1,208 @@
+#!/bin/bash
+
+# |>-<-><-><-><-><-><-><-><-><-><-><-><-><-><-><-><-><-><->-<| #
+# |>--------------------- UVA-MANAGER ----------------------<| #
+# |>-<-><-><-><-><-><-><-><-><-><-><-><-><-><-><-><-><-><->-<| #
+
+
+# ----------------------------------------------------------------------------
+# Flags                                                                       
+
+declare -A commandToFunction
+
+commandToFunction["init"]="init"
+commandToFunction["i"]="init"
+# commandToFunction["debug"]="debug"
+# commandToFunction["d"]="debug"
+commandToFunction["test"]="test-solution"
+commandToFunction["t"]="test-solution"
+commandToFunction["leaderboard"]="leaderboard"
+commandToFunction["l"]="leaderboard"
+commandToFunction["pdf"]="pdf"
+commandToFunction["p"]="pdf"
+# commandToFunction["validate"]="validate"
+# commandToFunction["v"]="validate"
+commandToFunction["submit"]="submit"
+commandToFunction["s"]="submit"
+# commandToFunction["cd"]="change-dir"
+# commandToFunction["c"]="change-dir"
+commandToFunction["open"]="open"
+commandToFunction["o"]="open"
+commandToFunction["find"]="colorize-find-all"
+commandToFunction["f"]="colorize-find-all"
+
+declare -A flagToFunction
+
+flagToFunction["--color"]="color"
+flagToFunction["-c"]="color"
+flagToFunction["--help"]="show-help"
+flagToFunction["-h"]="show-help"
+flagToFunction["--silent"]="silence"
+flagToFunction["-s"]="silence"
+
+# ------------------------------------------------------------------------------
+# Global Variables                                                              
+
+# List of arguments. Since flags will be filtered the remaining args will be 
+# saved here
+args=()
+
+# Suppresses unnecessary log prints (still prints errors)
+export SILENT=false
+
+# If color should be used when printing stuff
+export COLOR=false
+
+# Reset color variables
+source $(dirname $0)/nocolor.sh
+
+# ------------------------------------------------------------------------------
+# Helper functions 
+
+# The show function which prepends the filename to each echo print.
+# Will be used in subsequent files, therefore the export
+show() {
+    if [[ $SILENT == false ]] || [[ "$1" =~ ".*ERROR.*" ]]; then
+        echo -e "[${YELLOW}$(basename $0)${WHITE}] -> $1"
+    fi
+}
+export -f show
+
+# Returns a list of problem directories with absolute path which match the given string
+# TODO SORT BY CREATION TIME OR SOMETHING LIKE THAT
+find-problem() {
+    # echo -e "$(\find $UVA_HOME -iname \*$1\* | \grep -v "/\.git/" | \grep "/[0-9]*-.*" )"
+    echo -e "$(\ls -td $UVA_HOME/* | \grep -v "/\.git/" | \grep ".*/[0-9]*-.*" | \grep -i "$UVA_HOME/.*$1.*$" )"
+}
+export -f find-problem
+
+# ------------------------------------------------------------------------------
+# Command Functions (defined above parsing so parsing could find them)
+
+init() {
+    if [[ $# -eq 0 ]]; then
+        show "${RED}ERROR${WHITE}: No problem number supplied" >&2
+        return
+    fi
+    for problem in "$@"; do
+        $(dirname $0)/scripts/InitProblem.sh $problem
+    done
+}
+
+test-solution() {
+    if [[ $# -eq 0 ]]; then
+        show "${RED}ERROR${WHITE}: No problem source file supplied" >&2
+        return
+    fi
+    $(dirname $0)/scripts/ProgramTester.sh $1
+}
+
+leaderboard() {
+    $(dirname $0)/scripts/Leaderboard.sh "$@"
+}
+
+# Returns a list of files which match the given string
+find-all() {
+    echo -e "$(\find $UVA_HOME -iname \*$1\* | \grep -v "/\.git/" )"
+}
+
+# Due to wanting to use find-problem in other input this needs to be separate as colored output
+# can't be used when using it as a path
+colorize-find-all() {
+    if [[ $COLOR = true ]]; then
+        echo -e "$(find-problem $1)" | \grep --color=always -i $1
+    else
+        echo -e "$(find-problem $1)"
+    fi
+}
+
+
+pdf() {
+    # local problem_dir="/$(\ls -d $UVA_HOME/* | \grep "/$1-")"
+    local problem_dir=$(find-problem $1 | head -n 1)
+    xdg-open "$problem_dir"/*.pdf & disown
+}
+
+# Opens solution file in your $EDITOR whose name matches with the string you provided
+open() {
+    $(dirname $0)/scripts/OpenSolution.sh $@
+}
+
+submit() {
+    show "Submitting ${BLUE}$@${WHITE} to ${GREEN}onlinejudge.org${WHITE}"
+    show "Waiting for ${YELLOW}verdict${WHITE}"
+    python3 $(dirname $0)/scripts/Submit.py $@
+}
+
+# ------------------------------------------------------------------------------
+# Flag Functions (defined above parsing so parsing could find them)
+
+# Sets $RED $BLUE variables and so on for use in output. Only if -c or --color flag given
+color() {
+    source $(dirname $0)/color.sh
+    COLOR=true
+}
+
+silence() {
+    SILENT=true
+}
+
+# TODO: Update help page. Possible solutions to avoid duplication: 
+#       1. extract from README.md
+#       2. list all known commands from command_to_function
+#       3. print entire README.md
+# Prints the help page, if color has been enabled it will use color as well
+show-help() { 
+    echo -e "--- Help page for UVA-MANAGER ---
+
+ Available commands:
+ - ${YELLOW}uva debug${WHITE} or ${YELLOW}uva d${WHITE} ${RED}[not implemented yet]${WHITE} - tests problem on uDebug test cases
+ - ${YELLOW}uva find${WHITE} or ${YELLOW}uva f${WHITE} ${RED}[not implemented yet]${WHITE} - looks for problem names
+ - ${YELLOW}uva init${WHITE} or ${YELLOW}uva i${WHITE} - initializes problem: downloads pdf, creates folder, extracts test cases from pdf and uDebug
+ - ${YELLOW}uva submit${WHITE} or ${YELLOW}uva s${WHITE} ${RED}[not implemented yet]${WHITE} - submits problem to onlinejudge.org
+ - ${YELLOW}uva leaderboard${WHITE} ${RED}[not implemented yet]${WHITE} - shows solve stats for all problems
+ - ${YELLOW}uva open${WHITE} or ${YELLOW}uva o${WHITE} ${RED}[not implemented yet]${WHITE} - opens your solution for a problem
+ - ${YELLOW}uva validate${WHITE} or ${YELLOW}uva v${WHITE} ${RED}[not implemented yet]${WHITE} - prints all inaccuracies in the solutions folder which don't correspond to the guidelines
+ - ${YELLOW}uva test${WHITE} or ${YELLOW}uva t${WHITE} - tests problem on test cases from pdf and your own
+
+Look in the README.md for a more up to date page!
+
+Script and help page work in progress!
+"
+    exit 1
+}
+
+# ------------------------------------------------------------------------------
+# Parse Arguments
+
+# Check for flags 
+for arg in "$@"; do
+    if [[ -n ${flagToFunction[${arg}]} ]]; then
+        # echo "Found: $arg"
+        ${flagToFunction[${arg}]}
+    else
+        args+=($arg)
+    fi
+done
+
+# Get settings from config.sh after loading flags, before running commands.
+# You need to set it up if you haven't done so.
+if [[ -e$(dirname $0)/config.sh ]]; then
+    source $(dirname $0)/config.sh
+else
+    show "${RED}ERROR${WHITE}: config.sh not found"
+    exit 1
+fi
+
+# After filtering flags look for command
+if [[ ${#args[@]} -ne 0 ]]; then
+    if [[ -n ${commandToFunction[${args[0]}]} ]]; then
+        show "Running command ${CYAN}${args[0]}${WHITE}"
+        ${commandToFunction[${args[0]}]} ${args[@]:1}
+    else
+        show "Unknown command ${CYAN}${args[0]}${WHITE}. Type ${CYAN}uva --help${WHITE} for a list of commands."
+    fi
+else
+    show "No command given. Type ${CYAN}uva --help${WHITE} for a list of commands."
+fi
+
